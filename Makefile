@@ -10,7 +10,10 @@ MENUBAR_BIN  := $(MACOS_DIR)/PenpotMenuBar
 
 LSREGISTER   := /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister
 
-.PHONY: all build install clean uninstall status
+SHELL_RC     := $(HOME)/.zshrc
+ALIAS_LINE   := alias penpot='$(MACOS_DIR)/Penpot'
+
+.PHONY: all build install post-install clean uninstall status
 
 all: build
 
@@ -35,6 +38,16 @@ install: build | $(RES_DIR)
 	touch $(APP_DIR)
 	$(LSREGISTER) -f $(APP_DIR)
 	@echo "Installed: $(APP_DIR)"
+	@$(MAKE) post-install
+
+post-install:
+	@if grep -qF 'alias penpot=' $(SHELL_RC) 2>/dev/null; then \
+		echo "Shell alias already exists in $(SHELL_RC)"; \
+	else \
+		echo '\n# Penpot Desktop' >> $(SHELL_RC); \
+		echo '$(ALIAS_LINE)' >> $(SHELL_RC); \
+		echo "Added 'penpot' alias to $(SHELL_RC) — restart your shell or run: source $(SHELL_RC)"; \
+	fi
 
 $(MACOS_DIR) $(RES_DIR):
 	mkdir -p $@
@@ -45,6 +58,10 @@ clean:
 
 uninstall:
 	rm -rf $(APP_DIR)
+	@if grep -qF 'alias penpot=' $(SHELL_RC) 2>/dev/null; then \
+		sed -i '' '/# Penpot Desktop/d;/alias penpot=/d' $(SHELL_RC); \
+		echo "Removed 'penpot' alias from $(SHELL_RC)"; \
+	fi
 	@echo "Uninstalled: $(APP_DIR)"
 
 status:

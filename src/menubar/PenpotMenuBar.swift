@@ -72,7 +72,7 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(NSMenuItem(title: "Open Penpot", action: #selector(openPenpot), keyEquivalent: "o"))
-        menu.addItem(NSMenuItem(title: "Stop Penpot", action: #selector(stopPenpot), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit Penpot", action: #selector(stopPenpot), keyEquivalent: "q"))
 
         statusItem.menu = menu
 

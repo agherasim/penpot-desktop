@@ -56,7 +56,7 @@ case "$1" in
   status)
     HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "$PENPOT_PUBLIC_URI/readyz" 2>/dev/null)
     if [ "$HEALTH" = "200" ] && [ "$(curl -s "$PENPOT_PUBLIC_URI/readyz" 2>/dev/null)" = "OK" ]; then
-      echo "Penpot is running."
+      echo "Penpot is running at $PENPOT_PUBLIC_URI"
     else
       echo "Penpot is not healthy or not running."
     fi
