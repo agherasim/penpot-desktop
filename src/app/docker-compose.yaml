@@ -24,7 +24,7 @@
 # WARNING: if you're exposing Penpot to the internet, you should remove the flags
 # 'disable-secure-session-cookies' and 'disable-email-verification'
 x-flags: &penpot-flags
-  PENPOT_FLAGS: disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies enable-login-with-google
+  PENPOT_FLAGS: disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies enable-login-with-google enable-access-tokens
 
 x-uri: &penpot-public-uri
   PENPOT_PUBLIC_URI: ${PENPOT_PUBLIC_URI}
@@ -51,6 +51,7 @@ networks:
 volumes:
   penpot_postgres_v15:
   penpot_assets:
+  penpot_mcp_cache:
   # penpot_traefik:
 
 services:
@@ -255,3 +256,27 @@ services:
       - "1080:1080"
     networks:
       - penpot
+
+  penpot-mcp:
+    image: node:22-alpine
+    restart: unless-stopped
+    # Install pnpm globally first so the MCP bootstrap script can find it in PATH
+    command: sh -c "npm install -g pnpm && npx -y @penpot/mcp@latest"
+    volumes:
+      - penpot_mcp_cache:/root/.npm
+    ports:
+      - "4400:4400"
+      - "4401:4401"
+      - "4402:4402"
+    networks:
+      - penpot
+    environment:
+      # Bind servers to all interfaces so Docker port mapping works
+      PENPOT_MCP_SERVER_HOST: "0.0.0.0"
+      PENPOT_MCP_PLUGIN_SERVER_HOST: "0.0.0.0"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:4400/manifest.json 2>/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s

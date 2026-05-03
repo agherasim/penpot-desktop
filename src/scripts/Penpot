@@ -60,6 +60,12 @@ case "$1" in
     else
       echo "Penpot is not healthy or not running."
     fi
+    MCP_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:4400/manifest.json" 2>/dev/null)
+    if [ "$MCP_HEALTH" = "200" ]; then
+      echo "MCP server is running (plugin: http://localhost:4400, server: http://localhost:4401)"
+    else
+      echo "MCP server is not running."
+    fi
     ;;
   "")
     if docker compose -p penpot -f "$COMPOSE_FILE" ps --quiet 2>/dev/null | grep -q .; then
