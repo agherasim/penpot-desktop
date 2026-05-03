@@ -1,11 +1,25 @@
 import Cocoa
 
-class PenpotMenuBar: NSObject, NSApplicationDelegate {
+class PenpotMenuBar: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var statusItem: NSStatusItem!
-    private var statusMenuItem: NSMenuItem!
-    private var mcpStatusMenuItem: NSMenuItem!
     private var timer: Timer?
     private var isStopping = false
+    private var popoverLastClosedAt: Date = .distantPast
+
+    private lazy var statsViewController: StatsViewController = {
+        let vc = StatsViewController()
+        vc.onOpenPenpot  = { [weak self] in self?.openPenpotURL() }
+        vc.onStopCluster = { [weak self] in self?.stopPenpot() }
+        return vc
+    }()
+
+    private lazy var popover: NSPopover = {
+        let p = NSPopover()
+        p.contentViewController = statsViewController
+        p.behavior = .transient
+        p.delegate = self
+        return p
+    }()
 
     private let scriptPath: String = {
         let bundle = Bundle.main.executableURL?.deletingLastPathComponent()
@@ -28,7 +42,6 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate {
         return URL(string: "\(baseURL)/readyz")
     }()
 
-    // Plugin web server manifest — lightweight GET that closes immediately
     private let mcpHealthURL: URL? = URL(string: "http://localhost:4400/manifest.json")
 
     private lazy var menuBarIcon: NSImage? = {
@@ -37,22 +50,12 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate {
             .appendingPathComponent("Resources/MenuBarIconTemplate@2x.png").path
         let normalPath = dir?.deletingLastPathComponent()
             .appendingPathComponent("Resources/MenuBarIconTemplate.png").path
-
         let imagePath = retinaPath ?? normalPath ?? ""
         guard let image = NSImage(contentsOfFile: imagePath) else { return nil }
         image.size = NSSize(width: 18, height: 18)
         image.isTemplate = true
         return image
     }()
-
-    private func statusDot(_ color: String) -> String {
-        switch color {
-        case "green":  return "🟢"
-        case "yellow": return "🟡"
-        case "red":    return "🔴"
-        default:       return "⚪"
-        }
-    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -65,24 +68,13 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate {
                 button.title = "◆"
             }
             button.toolTip = "Penpot"
+            button.action = #selector(handleClick)
+            button.target = self
+            button.sendAction(on: [.leftMouseUp, .rightMouseDown])
         }
 
-        let menu = NSMenu()
-
-        statusMenuItem = NSMenuItem(title: "\(statusDot("yellow")) Penpot: Starting...", action: nil, keyEquivalent: "")
-        statusMenuItem.isEnabled = false
-        menu.addItem(statusMenuItem)
-
-        mcpStatusMenuItem = NSMenuItem(title: "\(statusDot("yellow")) MCP: Starting...", action: nil, keyEquivalent: "")
-        mcpStatusMenuItem.isEnabled = false
-        menu.addItem(mcpStatusMenuItem)
-
-        menu.addItem(NSMenuItem.separator())
-
-        menu.addItem(NSMenuItem(title: "Open Penpot", action: #selector(openPenpot), keyEquivalent: "o"))
-        menu.addItem(NSMenuItem(title: "Quit Penpot", action: #selector(stopPenpot), keyEquivalent: "q"))
-
-        statusItem.menu = menu
+        // Pre-load the stats VC so polling starts before the user opens the popover
+        statsViewController.loadViewIfNeeded()
 
         checkHealth()
         timer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
@@ -90,50 +82,82 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate {
         }
     }
 
+    @objc private func handleClick() {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseDown {
+            showContextMenu()
+        } else {
+            togglePopover()
+        }
+    }
+
+    private func togglePopover() {
+        guard let button = statusItem.button else { return }
+        if popover.isShown {
+            popover.performClose(nil)
+        } else {
+            let elapsed = Date().timeIntervalSince(popoverLastClosedAt)
+            guard elapsed > 0.1 else { return }
+            checkHealth()
+            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func showContextMenu() {
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Open Penpot", action: #selector(openPenpot), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Stop Penpot", action: #selector(stopPenpot), keyEquivalent: ""))
+        menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Quit Penpot", action: #selector(quitApp), keyEquivalent: ""))
+
+        for item in menu.items { item.target = self }
+
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
+    }
+
+    // MARK: - NSPopoverDelegate
+
+    func popoverDidClose(_ notification: Notification) {
+        popoverLastClosedAt = Date()
+    }
+
+    // MARK: - Health
+
     private func checkHealth() {
         if let url = healthURL {
-            let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, _ in
                 let http = response as? HTTPURLResponse
                 let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
                 let ok = http?.statusCode == 200 && body.trimmingCharacters(in: .whitespacesAndNewlines) == "OK"
-                DispatchQueue.main.async { self?.updateStatus(running: ok) }
+                DispatchQueue.main.async {
+                    self?.statusItem.button?.appearsDisabled = !ok
+                    self?.statsViewController.updatePenpotStatus(running: ok)
+                }
             }
             task.resume()
         } else {
-            updateStatus(running: false)
+            statsViewController.updatePenpotStatus(running: false)
         }
 
         if let url = mcpHealthURL {
-            let task = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
-                let http = response as? HTTPURLResponse
-                let ok = http?.statusCode == 200
-                DispatchQueue.main.async { self?.updateMcpStatus(running: ok) }
+            let task = URLSession.shared.dataTask(with: url) { [weak self] _, response, _ in
+                let ok = (response as? HTTPURLResponse)?.statusCode == 200
+                DispatchQueue.main.async { self?.statsViewController.updateMcpStatus(running: ok) }
             }
             task.resume()
         } else {
-            updateMcpStatus(running: false)
+            statsViewController.updateMcpStatus(running: false)
         }
     }
 
-    private func updateStatus(running: Bool) {
-        if isStopping { return }
-        if running {
-            statusItem.button?.appearsDisabled = false
-            statusMenuItem.title = "\(statusDot("green")) Penpot: Running"
-        } else {
-            statusItem.button?.appearsDisabled = true
-            statusMenuItem.title = "\(statusDot("red")) Penpot: Not Running"
-        }
-    }
+    // MARK: - Actions
 
-    private func updateMcpStatus(running: Bool) {
-        if isStopping { return }
-        mcpStatusMenuItem.title = running
-            ? "\(statusDot("green")) MCP: Running"
-            : "\(statusDot("red")) MCP: Not Running"
-    }
+    @objc private func openPenpot() { openPenpotURL() }
 
-    @objc private func openPenpot() {
+    private func openPenpotURL() {
         let envPath = Bundle.main.executableURL?
             .deletingLastPathComponent()
             .appendingPathComponent(".env").path ?? ""
@@ -153,8 +177,7 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate {
 
     @objc private func stopPenpot() {
         isStopping = true
-        statusMenuItem.title = "\(statusDot("yellow")) Penpot: Stopping..."
-        mcpStatusMenuItem.title = "\(statusDot("yellow")) MCP: Stopping..."
+        popover.performClose(nil)
         DispatchQueue.global().async { [weak self] in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: self?.scriptPath ?? "")
@@ -166,10 +189,8 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate {
             }
         }
     }
-}
 
-let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
-let delegate = PenpotMenuBar()
-app.delegate = delegate
-app.run()
+    @objc private func quitApp() {
+        NSApplication.shared.terminate(nil)
+    }
+}

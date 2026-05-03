@@ -5,7 +5,7 @@ MACOS_DIR    := $(CONTENTS_DIR)/MacOS
 RES_DIR      := $(CONTENTS_DIR)/Resources
 
 SRC_DIR      := src
-SWIFT_SRC    := $(SRC_DIR)/menubar/PenpotMenuBar.swift
+SWIFT_SRC    := $(wildcard $(SRC_DIR)/menubar/*.swift) Sources/DockerStats/DockerStatsParser.swift
 MENUBAR_BIN  := $(MACOS_DIR)/PenpotMenuBar
 
 LSREGISTER   := /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister
@@ -13,14 +13,14 @@ LSREGISTER   := /System/Library/Frameworks/CoreServices.framework/Versions/A/Fra
 SHELL_RC     := $(HOME)/.zshrc
 ALIAS_LINE   := alias penpot='$(MACOS_DIR)/Penpot'
 
-.PHONY: all build install post-install clean uninstall status
+.PHONY: all build install post-install clean uninstall status test
 
 all: build
 
 build: $(MENUBAR_BIN)
 
 $(MENUBAR_BIN): $(SWIFT_SRC) | $(MACOS_DIR)
-	swiftc -O -o $@ $< -framework Cocoa
+	swiftc -O -o $@ $(SWIFT_SRC) -framework Cocoa
 
 install: build | $(RES_DIR)
 	cp $(SRC_DIR)/app/Info.plist $(CONTENTS_DIR)/Info.plist
@@ -63,6 +63,9 @@ uninstall:
 		echo "Removed 'penpot' alias from $(SHELL_RC)"; \
 	fi
 	@echo "Uninstalled: $(APP_DIR)"
+
+test:
+	swift test
 
 status:
 	@test -d $(APP_DIR) && echo "$(APP_DIR) exists" || echo "$(APP_DIR) not found"
