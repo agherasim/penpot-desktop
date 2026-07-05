@@ -10,6 +10,9 @@ on:
         description: "Version to build (e.g. 1.2.0), for manual re-runs"
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-latest
@@ -21,10 +24,12 @@ jobs:
         id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+            VERSION="${{ inputs.version }}"
           else
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            VERSION="${GITHUB_REF_NAME#v}"
           fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "full_version=${VERSION}-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Build and assemble Penpot.app bundle
         env:
@@ -53,7 +58,7 @@ jobs:
 
       - name: Create DMG
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ steps.version.outputs.full_version }}
         run: |
           DMG_NAME="Penpot-${VERSION}.dmg"
           hdiutil create -volname "Penpot" -srcfolder build/Penpot.app -ov -format UDZO "$DMG_NAME"
@@ -63,4 +68,5 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.DMG_NAME }}
-          name: v${{ steps.version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.full_version }}
+          name: v${{ steps.version.outputs.full_version }}
