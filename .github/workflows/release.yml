@@ -2,6 +2,8 @@ name: Release DMG
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
   workflow_dispatch:
@@ -24,12 +26,17 @@ jobs:
         id: version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.version }}"
+            TAG="v${{ inputs.version }}-${{ github.run_number }}"
+            PRERELEASE=false
+          elif [ "${{ github.ref_type }}" = "tag" ]; then
+            TAG="v${GITHUB_REF_NAME#v}-${{ github.run_number }}"
+            PRERELEASE=false
           else
-            VERSION="${GITHUB_REF_NAME#v}"
+            TAG="unstable-${{ github.run_number }}"
+            PRERELEASE=true
           fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "full_version=${VERSION}-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
       - name: Build and assemble Penpot.app bundle
         env:
@@ -48,7 +55,8 @@ jobs:
           cp src/app/docker-compose.yaml "$MACOS_DIR/docker-compose.yaml"
           cp .env.example "$MACOS_DIR/.env.example"
           cp src/scripts/Penpot "$MACOS_DIR/Penpot"
-          chmod +x "$MACOS_DIR/Penpot"
+          cp src/scripts/setup.sh "$MACOS_DIR/setup.sh"
+          chmod +x "$MACOS_DIR/Penpot" "$MACOS_DIR/setup.sh"
           cp src/resources/AppIcon.icns "$RES_DIR/AppIcon.icns"
           cp src/resources/MenuBarIconTemplate.png "$RES_DIR/MenuBarIconTemplate.png"
           cp src/resources/MenuBarIconTemplate@2x.png "$RES_DIR/MenuBarIconTemplate@2x.png"
@@ -58,9 +66,9 @@ jobs:
 
       - name: Create DMG
         env:
-          VERSION: ${{ steps.version.outputs.full_version }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          DMG_NAME="Penpot-${VERSION}.dmg"
+          DMG_NAME="Penpot-${TAG}.dmg"
           hdiutil create -volname "Penpot" -srcfolder build/Penpot.app -ov -format UDZO "$DMG_NAME"
           echo "DMG_NAME=$DMG_NAME" >> "$GITHUB_ENV"
 
@@ -68,5 +76,20 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.DMG_NAME }}
-          tag_name: v${{ steps.version.outputs.full_version }}
-          name: v${{ steps.version.outputs.full_version }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          prerelease: ${{ steps.version.outputs.prerelease }}
+
+      - name: Clean up old unstable releases
+        if: steps.version.outputs.prerelease == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          KEEP=5
+          gh api "repos/${{ github.repository }}/releases" --paginate --jq \
+            '[.[] | select(.tag_name | startswith("unstable-"))] | .[].tag_name' \
+            | tail -n "+$((KEEP + 1))" \
+            | while read -r tag; do
+                echo "Deleting old unstable release: $tag"
+                gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag
+              done

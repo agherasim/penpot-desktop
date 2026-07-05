@@ -21,7 +21,8 @@ penpot-desktop/
 │   ├── menubar/
 │   │   └── PenpotMenuBar.swift       # Native menu bar status app
 │   ├── scripts/
-│   │   └── Penpot                    # Main launcher script (start/stop/status)
+│   │   ├── Penpot                    # Main launcher script (start/stop/status)
+│   │   └── setup.sh                  # Interactive first-run .env setup
 │   ├── resources/
 │   │   └── AppIcon.icns              # macOS app icon (all sizes)
 │   └── icons/
@@ -67,13 +68,19 @@ make install
 
 ## Configuration
 
-Copy the example and fill in your values:
+The installed app's `.env` lives at `~/Library/Application Support/Penpot/.env` — outside `Penpot.app` itself, so it survives DMG-based app updates (which replace the whole bundle).
+
+On first launch (Finder double-click or `Penpot start`/`Penpot` from the terminal), if that file doesn't exist yet, `setup.sh` runs automatically and interactively prompts for the values below, auto-generating `PENPOT_SECRET_KEY`. From Finder, this opens a Terminal window to run the prompts.
+
+For local development, `.env` at the repo root is used instead (copied into `~/Library/Application Support/Penpot/.env` by `make install`, unless one already exists there). You can also run the setup script yourself, or just copy the example and edit it directly:
 
 ```sh
-cp .env.example .env
+src/scripts/setup.sh .env .env.example   # interactive
+# or
+cp .env.example .env                     # manual
 ```
 
-Edit `.env` (shared by the app and `src/api-client`'s `penpot-cli`):
+`.env` is shared by the app and `src/api-client`'s `penpot-cli`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|

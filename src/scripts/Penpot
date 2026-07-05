@@ -1,15 +1,41 @@
 #!/bin/sh
 
-SCRIPT_DIR="$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yaml"
+EXAMPLE_FILE="$SCRIPT_DIR/.env.example"
+# Kept outside the app bundle so it survives DMG-based app updates
+# (replacing Penpot.app wholesale would otherwise wipe it).
+ENV_DIR="$HOME/Library/Application Support/Penpot"
+ENV_FILE="$ENV_DIR/.env"
 STARTUP_TIMEOUT=120
 
 # Ensure Docker is in PATH when launched from Finder
 export PATH="$HOME/.docker/bin:/usr/local/bin:$PATH"
 
+# First run: no .env yet, so walk the user through setup.
+if [ ! -f "$ENV_FILE" ]; then
+  mkdir -p "$ENV_DIR"
+  if [ -t 0 ]; then
+    "$SCRIPT_DIR/setup.sh" "$ENV_FILE" "$EXAMPLE_FILE"
+  else
+    # Launched from Finder (no terminal attached) — open one to run setup interactively.
+    echo "No configuration found — opening Terminal for first-run setup..."
+    osascript -e "tell application \"Terminal\" to do script \"'$SCRIPT_DIR/setup.sh' '$ENV_FILE' '$EXAMPLE_FILE'\"" >/dev/null
+    elapsed=0
+    while [ ! -f "$ENV_FILE" ] && [ "$elapsed" -lt 300 ]; do
+      sleep 2
+      elapsed=$((elapsed + 2))
+    done
+  fi
+  if [ ! -f "$ENV_FILE" ]; then
+    echo "Error: setup did not complete — aborting."
+    exit 1
+  fi
+fi
+
 # Load .env so PENPOT_PUBLIC_URI and other variables are available
 set -a
-. "$SCRIPT_DIR/.env"
+. "$ENV_FILE"
 set +a
 
 wait_for_healthy() {

@@ -4,6 +4,11 @@ CONTENTS_DIR := $(APP_DIR)/Contents
 MACOS_DIR    := $(CONTENTS_DIR)/MacOS
 RES_DIR      := $(CONTENTS_DIR)/Resources
 
+# Kept outside the app bundle so it survives DMG-based app updates
+# (replacing Penpot.app wholesale would otherwise wipe it).
+ENV_DIR      := $(HOME)/Library/Application Support/Penpot
+ENV_FILE     := $(ENV_DIR)/.env
+
 SRC_DIR      := src
 SWIFT_SRC    := $(wildcard $(SRC_DIR)/menubar/*.swift) Sources/DockerStats/DockerStatsParser.swift
 MENUBAR_BIN  := $(MACOS_DIR)/PenpotMenuBar
@@ -24,14 +29,19 @@ $(MENUBAR_BIN): $(SWIFT_SRC) | $(MACOS_DIR)
 
 install: build | $(RES_DIR)
 	cp $(SRC_DIR)/app/Info.plist $(CONTENTS_DIR)/Info.plist
-	@if [ -f $(MACOS_DIR)/.env ]; then \
-		echo ".env already exists, skipping (remove it manually to reset)"; \
+	@mkdir -p "$(ENV_DIR)"
+	@if [ -f "$(ENV_FILE)" ]; then \
+		echo ".env already exists at $(ENV_FILE), skipping (remove it manually to reset)"; \
+	elif [ -f .env ]; then \
+		cp .env "$(ENV_FILE)"; \
 	else \
-		cp .env $(MACOS_DIR)/.env; \
+		echo "No .env found — first launch will run interactive setup"; \
 	fi
 	cp $(SRC_DIR)/app/docker-compose.yaml $(MACOS_DIR)/docker-compose.yaml
+	cp .env.example $(MACOS_DIR)/.env.example
 	cp $(SRC_DIR)/scripts/Penpot $(MACOS_DIR)/Penpot
-	chmod +x $(MACOS_DIR)/Penpot
+	cp $(SRC_DIR)/scripts/setup.sh $(MACOS_DIR)/setup.sh
+	chmod +x $(MACOS_DIR)/Penpot $(MACOS_DIR)/setup.sh
 	cp $(SRC_DIR)/resources/AppIcon.icns $(RES_DIR)/AppIcon.icns
 	cp $(SRC_DIR)/resources/MenuBarIconTemplate.png $(RES_DIR)/MenuBarIconTemplate.png
 	cp $(SRC_DIR)/resources/MenuBarIconTemplate@2x.png $(RES_DIR)/MenuBarIconTemplate@2x.png
