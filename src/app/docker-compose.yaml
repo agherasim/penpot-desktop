@@ -1,3 +1,10 @@
+# Pins the compose project name to "penpot" regardless of invocation directory
+# or flags, so containers/volumes are always named consistently (e.g.
+# penpot_penpot_postgres_v15) — otherwise the default project name is derived
+# from the invoking directory (e.g. "app" if run from src/app/), which forks
+# onto a separate, empty set of volumes instead of the real data.
+name: penpot
+
 ## Common flags:
 # demo-users
 # email-verification
