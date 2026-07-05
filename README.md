@@ -13,10 +13,10 @@ A macOS app bundle that runs [Penpot](https://penpot.app) locally via Docker Com
 ```
 penpot-desktop/
 ├── Makefile                          # Build & install targets
+├── .env                              # Shared configuration (app + api-client)
 ├── src/
 │   ├── app/
 │   │   ├── Info.plist                # macOS app bundle metadata
-│   │   ├── .env                      # Configuration (version, public URI)
 │   │   └── docker-compose.yaml       # Penpot services
 │   ├── menubar/
 │   │   └── PenpotMenuBar.swift       # Native menu bar status app
@@ -70,14 +70,17 @@ make install
 Copy the example and fill in your values:
 
 ```sh
-cp src/app/.env.example src/app/.env
+cp .env.example .env
 ```
 
-Edit `src/app/.env`:
+Edit `.env` (shared by the app and `src/api-client`'s `penpot-cli`):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PENPOT_VERSION` | `2.14.3` | Penpot Docker image tag |
 | `PENPOT_PUBLIC_URI` | `http://localhost:9001` | URL for browser + backend |
+| `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | — | Google OAuth login credentials |
+| `PENPOT_SECRET_KEY` | — | Penpot backend master key |
+| `PENPOT_AUTH_TOKEN` | — | `penpot-cli` login token (obtained separately via the Penpot UI/API) |
 
 After editing, re-run `make install` to apply changes.

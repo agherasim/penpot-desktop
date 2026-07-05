@@ -27,7 +27,7 @@ install: build | $(RES_DIR)
 	@if [ -f $(MACOS_DIR)/.env ]; then \
 		echo ".env already exists, skipping (remove it manually to reset)"; \
 	else \
-		cp $(SRC_DIR)/app/.env $(MACOS_DIR)/.env; \
+		cp .env $(MACOS_DIR)/.env; \
 	fi
 	cp $(SRC_DIR)/app/docker-compose.yaml $(MACOS_DIR)/docker-compose.yaml
 	cp $(SRC_DIR)/scripts/Penpot $(MACOS_DIR)/Penpot

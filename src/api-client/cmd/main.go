@@ -27,6 +27,11 @@ func run(args []string) error {
 	// Global --token flag before the subcommand
 	token := os.Getenv("PENPOT_AUTH_TOKEN")
 	baseURL := os.Getenv("PENPOT_API_URL")
+	if baseURL == "" {
+		if publicURI := os.Getenv("PENPOT_PUBLIC_URI"); publicURI != "" {
+			baseURL = strings.TrimRight(publicURI, "/") + "/api/rpc/command"
+		}
+	}
 
 	global := flag.NewFlagSet("penpot", flag.ContinueOnError)
 	global.StringVar(&token, "token", token, "API access token (default: $PENPOT_AUTH_TOKEN)")

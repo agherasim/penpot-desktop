@@ -1,0 +1,66 @@
+name: Release DMG
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g. 1.2.0), for manual re-runs"
+        required: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and assemble Penpot.app bundle
+        env:
+          APP_DIR: build/Penpot.app
+        run: |
+          CONTENTS_DIR="$APP_DIR/Contents"
+          MACOS_DIR="$CONTENTS_DIR/MacOS"
+          RES_DIR="$CONTENTS_DIR/Resources"
+          mkdir -p "$MACOS_DIR" "$RES_DIR"
+
+          swiftc -O -o "$MACOS_DIR/PenpotMenuBar" \
+            src/menubar/*.swift Sources/DockerStats/DockerStatsParser.swift \
+            -framework Cocoa
+
+          cp src/app/Info.plist "$CONTENTS_DIR/Info.plist"
+          cp src/app/docker-compose.yaml "$MACOS_DIR/docker-compose.yaml"
+          cp .env.example "$MACOS_DIR/.env.example"
+          cp src/scripts/Penpot "$MACOS_DIR/Penpot"
+          chmod +x "$MACOS_DIR/Penpot"
+          cp src/resources/AppIcon.icns "$RES_DIR/AppIcon.icns"
+          cp src/resources/MenuBarIconTemplate.png "$RES_DIR/MenuBarIconTemplate.png"
+          cp src/resources/MenuBarIconTemplate@2x.png "$RES_DIR/MenuBarIconTemplate@2x.png"
+
+      - name: Ad-hoc codesign
+        run: codesign --force --deep --sign - build/Penpot.app
+
+      - name: Create DMG
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          DMG_NAME="Penpot-${VERSION}.dmg"
+          hdiutil create -volname "Penpot" -srcfolder build/Penpot.app -ov -format UDZO "$DMG_NAME"
+          echo "DMG_NAME=$DMG_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.DMG_NAME }}
+          name: v${{ steps.version.outputs.version }}
