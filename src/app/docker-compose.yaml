@@ -278,9 +278,20 @@ services:
     image: node:22-alpine
     restart: unless-stopped
     # pnpm is installed globally first because the MCP bootstrap script needs it in PATH.
+    # @penpot/mcp's own bootstrap (bin/mcp-local.js) shells out to `pnpm install`, which
+    # since pnpm 10+ hard-fails on native-dependency build scripts (esbuild, sharp) unless
+    # explicitly approved in pnpm-workspace.yaml. There's no flag to pre-approve them for
+    # a one-shot `npx` run, so: run once (fails harmlessly at the install step, which
+    # auto-writes an `allowBuilds` placeholder into pnpm-workspace.yaml), patch that
+    # placeholder to true, then run for real.
     command: >-
       sh -c "npm install -g pnpm &&
-      npx -y @penpot/mcp@$$PENPOT_MCP_VERSION"
+      mkdir -p /opt/mcp && cd /opt/mcp &&
+      npm install @penpot/mcp@$$PENPOT_MCP_VERSION --no-save &&
+      cd node_modules/@penpot/mcp &&
+      (node bin/mcp-local.js || true) &&
+      sed -i 's/esbuild:.*/esbuild: true/; s/sharp:.*/sharp: true/' pnpm-workspace.yaml &&
+      exec node bin/mcp-local.js"
     volumes:
       - penpot_mcp_cache:/root/.npm
     ports:
@@ -295,7 +306,9 @@ services:
       PENPOT_MCP_SERVER_HOST: "0.0.0.0"
       PENPOT_MCP_PLUGIN_SERVER_HOST: "0.0.0.0"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:4400/manifest.json 2>/dev/null || exit 1"]
+      # 127.0.0.1, not localhost: the plugin's vite server only binds IPv4, but
+      # "localhost" resolves to ::1 first in this image, causing false negatives.
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:4400/manifest.json 2>/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
