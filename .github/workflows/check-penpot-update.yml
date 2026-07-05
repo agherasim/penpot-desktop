@@ -1,0 +1,67 @@
+name: Check Penpot Update
+
+on:
+  schedule:
+    # Daily at 06:00 UTC.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compare pinned version against upstream latest release
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CURRENT="$(tr -d '[:space:]' < .version)"
+          # /releases/latest excludes prereleases and drafts, so RCs never match.
+          LATEST="$(gh api repos/penpot/penpot/releases/latest --jq '.tag_name' | tr -d '[:space:]')"
+          echo "current=$CURRENT"
+          echo "latest=$LATEST"
+
+          if [ -z "$LATEST" ]; then
+            echo "Could not resolve upstream latest release — skipping." >&2
+            exit 1
+          fi
+
+          # Version-aware comparison: newer only if LATEST sorts strictly after
+          # CURRENT (sort -V handles 2.9.0 vs 2.16.0 correctly, unlike string compare).
+          if [ "$CURRENT" = "$LATEST" ]; then
+            echo "Already on the latest version ($CURRENT)."
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          elif [ "$(printf '%s\n%s\n' "$CURRENT" "$LATEST" | sort -V | tail -n1)" = "$LATEST" ]; then
+            echo "Update available: $CURRENT -> $LATEST"
+            echo "update=true" >> "$GITHUB_OUTPUT"
+            echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+          else
+            echo "Pinned version ($CURRENT) is ahead of upstream latest ($LATEST) — nothing to do."
+            echo "update=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update .version
+        if: steps.check.outputs.update == 'true'
+        run: printf '%s\n' "${{ steps.check.outputs.latest }}" > .version
+
+      - name: Open pull request
+        if: steps.check.outputs.update == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          # A fixed branch name makes re-runs update the existing PR instead of
+          # opening duplicates.
+          branch: penpot-update/${{ steps.check.outputs.latest }}
+          commit-message: "Bump Penpot to ${{ steps.check.outputs.latest }}"
+          title: "Bump Penpot to ${{ steps.check.outputs.latest }}"
+          body: |
+            Upstream [penpot/penpot ${{ steps.check.outputs.latest }}](https://github.com/penpot/penpot/releases/tag/${{ steps.check.outputs.latest }}) is newer than the pinned version in `.version`.
+
+            This PR bumps `.version` to `${{ steps.check.outputs.latest }}`. Review the upstream release notes before merging, and remember `PENPOT_MCP_VERSION` in `docker-compose.yaml` is pinned separately and may need its own bump.
+          labels: penpot-update

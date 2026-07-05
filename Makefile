@@ -39,6 +39,7 @@ install: build | $(RES_DIR)
 	fi
 	cp $(SRC_DIR)/app/docker-compose.yaml $(MACOS_DIR)/docker-compose.yaml
 	cp .env.example $(MACOS_DIR)/.env.example
+	cp .version $(MACOS_DIR)/.version
 	cp $(SRC_DIR)/scripts/Penpot $(MACOS_DIR)/Penpot
 	cp $(SRC_DIR)/scripts/setup.sh $(MACOS_DIR)/setup.sh
 	chmod +x $(MACOS_DIR)/Penpot $(MACOS_DIR)/setup.sh

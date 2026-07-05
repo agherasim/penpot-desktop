@@ -3,6 +3,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.yaml"
 EXAMPLE_FILE="$SCRIPT_DIR/.env.example"
+VERSION_FILE="$SCRIPT_DIR/.version"
 # Kept outside the app bundle so it survives DMG-based app updates
 # (replacing Penpot.app wholesale would otherwise wipe it).
 ENV_DIR="$HOME/Library/Application Support/Penpot"
@@ -37,6 +38,18 @@ fi
 set -a
 . "$ENV_FILE"
 set +a
+
+# The Penpot version is pinned in the committed .version file (single source of
+# truth) and injected here, overriding anything a stale .env might carry. Without
+# it, docker-compose falls back to ':latest', risking a DB-schema mismatch.
+if [ -f "$VERSION_FILE" ]; then
+  PENPOT_VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
+  export PENPOT_VERSION
+fi
+if [ -z "$PENPOT_VERSION" ]; then
+  echo "Error: PENPOT_VERSION is not set (missing or empty $VERSION_FILE) — aborting to avoid pulling ':latest'."
+  exit 1
+fi
 
 # Only enable Google login if both credentials are set — the backend fails
 # to start if the flag is on with empty client-id/client-secret.

@@ -13,6 +13,7 @@ A macOS app bundle that runs [Penpot](https://penpot.app) locally via Docker Com
 ```
 penpot-desktop/
 ├── Makefile                          # Build & install targets
+├── .version                          # Pinned Penpot version (source of truth)
 ├── .env                              # Shared configuration (app + api-client)
 ├── src/
 │   ├── app/
@@ -84,10 +85,17 @@ cp .env.example .env                     # manual
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PENPOT_VERSION` | `2.14.3` | Penpot Docker image tag |
 | `PENPOT_PUBLIC_URI` | `http://localhost:9001` | URL for browser + backend |
 | `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` | — | Google OAuth login credentials |
 | `PENPOT_SECRET_KEY` | — | Penpot backend master key |
 | `PENPOT_AUTH_TOKEN` | — | `penpot-cli` login token (obtained separately via the Penpot UI/API) |
+
+### Penpot version
+
+The Penpot version is **not** in `.env` — it's pinned in the committed `.version` file (single source of truth) and injected into `docker-compose.yaml` by the launcher script at startup. To upgrade/downgrade Penpot, edit `.version` and re-run `make install`.
+
+A scheduled workflow (`.github/workflows/check-penpot-update.yml`) checks [penpot/penpot](https://github.com/penpot/penpot/releases) daily and opens a PR bumping `.version` when a newer stable release is available. `PENPOT_MCP_VERSION` in `docker-compose.yaml` is pinned separately (the MCP package lags Penpot releases) and is not affected.
+
+> Running `docker compose` manually (outside the launcher) won't pick up `.version` — export it first: `export PENPOT_VERSION=$(cat .version)`.
 
 After editing, re-run `make install` to apply changes.
