@@ -133,8 +133,7 @@ class ContainerCardView: NSView {
 // MARK: - Stats view controller
 
 class StatsViewController: NSViewController {
-    var onOpenPenpot:  (() -> Void)?
-    var onStopCluster: (() -> Void)?
+    var onOpenPenpot: (() -> Void)?
 
     private let penpotStatusLabel = NSTextField(labelWithString: "⚪ Penpot: Checking…")
     private let mcpStatusLabel    = NSTextField(labelWithString: "⚪ MCP: Checking…")
@@ -261,10 +260,13 @@ class StatsViewController: NSViewController {
         scroll.documentView = outerHStack
 
         let clip = scroll.contentView
+        let bottom = outerHStack.bottomAnchor.constraint(equalTo: clip.bottomAnchor)
+        bottom.priority = .defaultLow
         NSLayoutConstraint.activate([
             outerHStack.leadingAnchor.constraint(equalTo: clip.leadingAnchor),
             outerHStack.trailingAnchor.constraint(equalTo: clip.trailingAnchor),
             outerHStack.topAnchor.constraint(equalTo: clip.topAnchor),
+            bottom,
         ])
 
         return scroll
@@ -285,27 +287,17 @@ class StatsViewController: NSViewController {
         openBtn.bezelStyle = .rounded
         openBtn.translatesAutoresizingMaskIntoConstraints = false
 
-        let stopBtn = NSButton(title: "Stop Penpot", target: self, action: #selector(stopTapped))
-        stopBtn.bezelStyle = .rounded
-        stopBtn.contentTintColor = .systemRed
-        stopBtn.translatesAutoresizingMaskIntoConstraints = false
-
         v.addSubview(openBtn)
-        v.addSubview(stopBtn)
 
         NSLayoutConstraint.activate([
             openBtn.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 16),
             openBtn.centerYAnchor.constraint(equalTo: v.centerYAnchor),
-
-            stopBtn.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -16),
-            stopBtn.centerYAnchor.constraint(equalTo: v.centerYAnchor),
         ])
 
         return v
     }
 
     @objc private func openTapped() { onOpenPenpot?() }
-    @objc private func stopTapped() { onStopCluster?() }
 
     // MARK: - Polling
 

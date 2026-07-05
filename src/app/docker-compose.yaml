@@ -24,7 +24,7 @@
 # WARNING: if you're exposing Penpot to the internet, you should remove the flags
 # 'disable-secure-session-cookies' and 'disable-email-verification'
 x-flags: &penpot-flags
-  PENPOT_FLAGS: disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies enable-login-with-google enable-access-tokens
+  PENPOT_FLAGS: disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies enable-login-with-google enable-access-tokens enable-mcp
 
 x-uri: &penpot-public-uri
   PENPOT_PUBLIC_URI: ${PENPOT_PUBLIC_URI}
@@ -44,6 +44,13 @@ x-body-size: &penpot-http-body-size
 ## python3 -c "import secrets; print(secrets.token_urlsafe(64))"
 x-secret-key: &penpot-secret-key
   PENPOT_SECRET_KEY: ${PENPOT_SECRET_KEY}
+
+## @penpot/mcp on npm is versioned independently of the penpot backend/frontend
+## images and doesn't always publish a release matching PENPOT_VERSION (e.g. at
+## the time of writing PENPOT_VERSION=2.16.x exists but @penpot/mcp only goes up
+## to 2.15.4). Pin it explicitly here instead of deriving it from PENPOT_VERSION.
+x-mcp-version: &penpot-mcp-version
+  PENPOT_MCP_VERSION: 2.15.4
 
 networks:
   penpot:
@@ -260,12 +267,10 @@ services:
   penpot-mcp:
     image: node:22-alpine
     restart: unless-stopped
-    # Derive the MCP version from PENPOT_VERSION (major.minor) so they stay in sync.
     # pnpm is installed globally first because the MCP bootstrap script needs it in PATH.
     command: >-
       sh -c "npm install -g pnpm &&
-      MVER=$$(echo $$PENPOT_VERSION | cut -d. -f1,2) &&
-      npx -y @penpot/mcp@~$${MVER}.0"
+      npx -y @penpot/mcp@$$PENPOT_MCP_VERSION"
     volumes:
       - penpot_mcp_cache:/root/.npm
     ports:
@@ -275,7 +280,7 @@ services:
     networks:
       - penpot
     environment:
-      PENPOT_VERSION: "${PENPOT_VERSION}"
+      << : [*penpot-mcp-version]
       # Bind servers to all interfaces so Docker port mapping works
       PENPOT_MCP_SERVER_HOST: "0.0.0.0"
       PENPOT_MCP_PLUGIN_SERVER_HOST: "0.0.0.0"

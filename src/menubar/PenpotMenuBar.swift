@@ -8,8 +8,7 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private lazy var statsViewController: StatsViewController = {
         let vc = StatsViewController()
-        vc.onOpenPenpot  = { [weak self] in self?.openPenpotURL() }
-        vc.onStopCluster = { [weak self] in self?.stopPenpot() }
+        vc.onOpenPenpot = { [weak self] in self?.openPenpotURL() }
         return vc
     }()
 
@@ -107,9 +106,8 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func showContextMenu() {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Open Penpot", action: #selector(openPenpot), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Stop Penpot", action: #selector(stopPenpot), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Quit Penpot", action: #selector(quitApp), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Quit Penpot", action: #selector(stopPenpot), keyEquivalent: ""))
 
         for item in menu.items { item.target = self }
 
@@ -190,7 +188,4 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
     }
 
-    @objc private func quitApp() {
-        NSApplication.shared.terminate(nil)
-    }
 }
