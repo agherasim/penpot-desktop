@@ -24,7 +24,10 @@
 # WARNING: if you're exposing Penpot to the internet, you should remove the flags
 # 'disable-secure-session-cookies' and 'disable-email-verification'
 x-flags: &penpot-flags
-  PENPOT_FLAGS: disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies enable-login-with-google enable-access-tokens enable-mcp
+  # enable-login-with-google is appended via PENPOT_GOOGLE_FLAG (set by src/scripts/Penpot)
+  # only when GOOGLE_OAUTH_CLIENT_ID/SECRET are both set — enabling it with empty
+  # credentials fails backend startup with a schema-validation error.
+  PENPOT_FLAGS: disable-email-verification enable-smtp enable-prepl-server disable-secure-session-cookies enable-access-tokens enable-mcp ${PENPOT_GOOGLE_FLAG:-}
 
 x-uri: &penpot-public-uri
   PENPOT_PUBLIC_URI: ${PENPOT_PUBLIC_URI}

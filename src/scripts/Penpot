@@ -38,6 +38,14 @@ set -a
 . "$ENV_FILE"
 set +a
 
+# Only enable Google login if both credentials are set — the backend fails
+# to start if the flag is on with empty client-id/client-secret.
+if [ -n "$GOOGLE_OAUTH_CLIENT_ID" ] && [ -n "$GOOGLE_OAUTH_CLIENT_SECRET" ]; then
+  export PENPOT_GOOGLE_FLAG="enable-login-with-google"
+else
+  export PENPOT_GOOGLE_FLAG=""
+fi
+
 wait_for_healthy() {
   elapsed=0
   echo "Waiting for Penpot to become healthy..."
