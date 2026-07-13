@@ -1,3 +1,4 @@
 .env
 .build/
 .serena
+.DS_Store

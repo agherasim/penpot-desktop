@@ -284,8 +284,18 @@ services:
     # a one-shot `npx` run, so: run once (fails harmlessly at the install step, which
     # auto-writes an `allowBuilds` placeholder into pnpm-workspace.yaml), patch that
     # placeholder to true, then run for real.
+    #
+    # /opt/mcp itself isn't a volume, but `restart: unless-stopped` restarts this same
+    # container (not a fresh one) on crash, so its writable layer — including any
+    # partially-installed node_modules — survives restarts. Re-running `npm install`
+    # against a node_modules left behind by a killed/failed previous attempt can hit an
+    # npm arborist bug (TypeError: Cannot read properties of null (reading 'package'),
+    # in Node.replace) that fails deterministically forever after, i.e. a permanent
+    # crash loop. Wipe /opt/mcp before installing so every start is idempotent; the
+    # mounted npm cache still makes reinstalls fast.
     command: >-
       sh -c "npm install -g pnpm &&
+      rm -rf /opt/mcp &&
       mkdir -p /opt/mcp && cd /opt/mcp &&
       npm install @penpot/mcp@$$PENPOT_MCP_VERSION --no-save &&
       cd node_modules/@penpot/mcp &&
