@@ -1,0 +1,36 @@
+# Rendered by .github/workflows/release.yml on tag pushes (@VERSION@/@SHA256@)
+# and pushed to the agherasim/homebrew-tap repo.
+class PenpotDesktop < Formula
+  desc "Menu bar launcher for a self-hosted Penpot stack on Docker"
+  homepage "https://github.com/agherasim/penpot-desktop"
+  url "https://github.com/agherasim/penpot-desktop/archive/refs/tags/v@VERSION@.tar.gz"
+  sha256 "@SHA256@"
+  head "https://github.com/agherasim/penpot-desktop.git", branch: "main"
+
+  depends_on :macos
+
+  def install
+    system "make", "assemble", "APP_DIR=#{prefix}/Penpot.app"
+    (bin/"penpot").write <<~SH
+      #!/bin/sh
+      exec "#{opt_prefix}/Penpot.app/Contents/MacOS/Penpot" "$@"
+    SH
+  end
+
+  def caveats
+    <<~EOS
+      Requires Docker Desktop:
+        brew install --cask docker
+
+      To add Penpot to your Applications folder (Spotlight, Launchpad, Dock):
+        penpot install-app
+
+      Before `brew uninstall penpot-desktop`, remove the launcher:
+        penpot uninstall-app
+    EOS
+  end
+
+  test do
+    assert_match "No Penpot launcher", shell_output("#{bin}/penpot uninstall-app #{testpath}")
+  end
+end

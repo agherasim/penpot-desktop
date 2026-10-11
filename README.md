@@ -39,10 +39,26 @@ make install
 | Target | Description |
 |--------|-------------|
 | `make build` | Compile the Swift menu bar binary |
+| `make assemble` | Build + copy the app bundle to `APP_DIR` (no `.env`, no alias) |
+| `make bundle` | Assemble + ad-hoc sign a relocatable bundle at `BUNDLE_DIR` (default `build/Penpot.app`, used for the DMG) |
 | `make install` | Build + assemble app bundle at `~/Applications/Penpot.app` |
 | `make clean` | Remove compiled binary |
 | `make uninstall` | Delete `Penpot.app` entirely |
 | `make status` | Check if app is installed |
+
+### Homebrew
+
+```sh
+brew install agherasim/tap/penpot-desktop        # latest tagged release
+brew install --HEAD agherasim/tap/penpot-desktop # build from main
+penpot install-app                               # add a launcher to /Applications
+```
+
+The formula builds from source (Xcode Command Line Tools required), so nothing is downloaded pre-built and Gatekeeper doesn't block it. The app itself lives in `$(brew --prefix)/opt/penpot-desktop/Penpot.app`. `penpot install-app [dir]` writes a small launcher bundle into `/Applications` (or `~/Applications`, or `dir`) that runs that `opt` path, so it keeps working across `brew upgrade`. A Finder alias or symlink would point at the versioned Cellar directory and break after `brew cleanup`. Run `penpot uninstall-app` before `brew uninstall`.
+
+Switching from `make install`? Run `make uninstall` first. Otherwise the `alias penpot=` it added to `~/.zshrc` shadows Homebrew's `penpot`.
+
+The formula template is `packaging/homebrew/penpot-desktop.rb.in`. On a `v*` tag push, `release.yml` renders it with the tag's tarball checksum and pushes it to `agherasim/homebrew-tap` over SSH with the `TAP_DEPLOY_KEY` secret, the private half of a write-enabled deploy key on the tap repo (skipped if unset). Each project publishing to the tap gets its own deploy key.
 
 ## Usage
 

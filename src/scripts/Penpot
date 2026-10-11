@@ -13,6 +13,88 @@ STARTUP_TIMEOUT=120
 # Ensure Docker is in PATH when launched from Finder
 export PATH="$HOME/.docker/bin:/usr/local/bin:$PATH"
 
+SHIM_ID="app.penpot.desktop.launcher"
+LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister
+
+# Applications folder to put the launcher in: explicit arg, else /Applications
+# if writable, else ~/Applications.
+apps_dir() {
+  if [ -n "$1" ]; then
+    echo "$1"
+  elif [ -w /Applications ]; then
+    echo /Applications
+  else
+    echo "$HOME/Applications"
+  fi
+}
+
+is_shim() {
+  [ "$(plutil -extract CFBundleIdentifier raw "$1/Contents/Info.plist" 2>/dev/null)" = "$SHIM_ID" ]
+}
+
+# install-app: write a tiny launcher bundle into the Applications folder that
+# execs this app by a version-stable path. A Finder alias or symlink would
+# resolve to the versioned Homebrew Cellar dir and break after upgrade+cleanup.
+case "$1" in
+  install-app)
+    if command -v brew >/dev/null 2>&1 && BREW_PREFIX="$(brew --prefix --installed penpot-desktop 2>/dev/null)"; then
+      TARGET_APP="$BREW_PREFIX/Penpot.app"
+    else
+      TARGET_APP="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    fi
+    DEST_DIR="$(apps_dir "$2")"
+    SHIM="$DEST_DIR/Penpot.app"
+    if [ "$(cd "$SHIM" 2>/dev/null && pwd)" = "$TARGET_APP" ]; then
+      echo "Penpot.app is already installed in $DEST_DIR."
+      exit 0
+    fi
+    if [ -e "$SHIM" ] && ! is_shim "$SHIM"; then
+      echo "Error: $SHIM already exists and is not a Penpot launcher — remove it first."
+      exit 1
+    fi
+    rm -rf "$SHIM"
+    mkdir -p "$SHIM/Contents/MacOS" "$SHIM/Contents/Resources"
+    cat > "$SHIM/Contents/Info.plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>$SHIM_ID</string>
+    <key>CFBundleName</key>
+    <string>Penpot</string>
+    <key>CFBundleDisplayName</key>
+    <string>Penpot</string>
+    <key>CFBundleExecutable</key>
+    <string>Penpot</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+</dict>
+</plist>
+EOF
+    printf '#!/bin/sh\nexec "%s/Contents/MacOS/Penpot" "$@"\n' "$TARGET_APP" > "$SHIM/Contents/MacOS/Penpot"
+    chmod +x "$SHIM/Contents/MacOS/Penpot"
+    cp "$TARGET_APP/Contents/Resources/AppIcon.icns" "$SHIM/Contents/Resources/AppIcon.icns"
+    "$LSREGISTER" -f "$SHIM"
+    echo "Installed launcher: $SHIM -> $TARGET_APP"
+    exit 0
+    ;;
+  uninstall-app)
+    SHIM="$(apps_dir "$2")/Penpot.app"
+    if is_shim "$SHIM"; then
+      rm -rf "$SHIM"
+      echo "Removed launcher: $SHIM"
+    else
+      echo "No Penpot launcher found at $SHIM."
+    fi
+    exit 0
+    ;;
+esac
+
 # First run: no .env yet, so walk the user through setup.
 if [ ! -f "$ENV_FILE" ]; then
   mkdir -p "$ENV_DIR"
@@ -127,7 +209,7 @@ case "$1" in
     "$SCRIPT_DIR/PenpotMenuBar" &
     ;;
   *)
-    echo "Usage: $0 {start|stop|status}"
+    echo "Usage: $0 {start|stop|status|install-app [dir]|uninstall-app [dir]}"
     exit 1
     ;;
 esac
