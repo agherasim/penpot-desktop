@@ -38,32 +38,8 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
-      - name: Build and assemble Penpot.app bundle
-        env:
-          APP_DIR: build/Penpot.app
-        run: |
-          CONTENTS_DIR="$APP_DIR/Contents"
-          MACOS_DIR="$CONTENTS_DIR/MacOS"
-          RES_DIR="$CONTENTS_DIR/Resources"
-          mkdir -p "$MACOS_DIR" "$RES_DIR"
-
-          swiftc -O -o "$MACOS_DIR/PenpotMenuBar" \
-            src/menubar/*.swift Sources/DockerStats/DockerStatsParser.swift \
-            -framework Cocoa
-
-          cp src/app/Info.plist "$CONTENTS_DIR/Info.plist"
-          cp src/app/docker-compose.yaml "$MACOS_DIR/docker-compose.yaml"
-          cp .env.example "$MACOS_DIR/.env.example"
-          cp .version "$MACOS_DIR/.version"
-          cp src/scripts/Penpot "$MACOS_DIR/Penpot"
-          cp src/scripts/setup.sh "$MACOS_DIR/setup.sh"
-          chmod +x "$MACOS_DIR/Penpot" "$MACOS_DIR/setup.sh"
-          cp src/resources/AppIcon.icns "$RES_DIR/AppIcon.icns"
-          cp src/resources/MenuBarIconTemplate.png "$RES_DIR/MenuBarIconTemplate.png"
-          cp src/resources/MenuBarIconTemplate@2x.png "$RES_DIR/MenuBarIconTemplate@2x.png"
-
-      - name: Ad-hoc codesign
-        run: codesign --force --deep --sign - build/Penpot.app
+      - name: Build, assemble and ad-hoc sign Penpot.app bundle
+        run: make bundle BUNDLE_DIR=build/Penpot.app
 
       - name: Create DMG
         env:
@@ -94,3 +70,44 @@ jobs:
                 echo "Deleting old unstable release: $tag"
                 gh release delete "$tag" --repo "${{ github.repository }}" --yes --cleanup-tag
               done
+
+  homebrew:
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render formula
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          SHA=$(curl -fsSL "https://github.com/${{ github.repository }}/archive/refs/tags/v${VERSION}.tar.gz" | sha256sum | cut -d' ' -f1)
+          sed -e "s/@VERSION@/${VERSION}/" -e "s/@SHA256@/${SHA}/" \
+            packaging/homebrew/penpot-desktop.rb.in > penpot-desktop.rb
+
+      - name: Push formula to tap
+        env:
+          TAP_DEPLOY_KEY: ${{ secrets.TAP_DEPLOY_KEY }}
+        run: |
+          if [ -z "$TAP_DEPLOY_KEY" ]; then
+            echo "TAP_DEPLOY_KEY not set; skipping tap update"
+            exit 0
+          fi
+          KEY="$RUNNER_TEMP/tap_key"
+          printf '%s\n' "$TAP_DEPLOY_KEY" > "$KEY"
+          chmod 600 "$KEY"
+          export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          git clone git@github.com:agherasim/homebrew-tap.git tap
+          mkdir -p tap/Formula
+          cp penpot-desktop.rb tap/Formula/penpot-desktop.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/penpot-desktop.rb
+          git commit -m "penpot-desktop ${GITHUB_REF_NAME#v}" || exit 0
+          # Other projects push to the same tap; rebase onto theirs if we raced.
+          for i in 1 2 3; do
+            git push && break
+            git pull --rebase
+          done

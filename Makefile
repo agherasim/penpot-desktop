@@ -9,6 +9,8 @@ RES_DIR      := $(CONTENTS_DIR)/Resources
 ENV_DIR      := $(HOME)/Library/Application Support/Penpot
 ENV_FILE     := $(ENV_DIR)/.env
 
+BUNDLE_DIR   ?= build/Penpot.app
+
 SRC_DIR      := src
 SWIFT_SRC    := $(wildcard $(SRC_DIR)/menubar/*.swift) Sources/DockerStats/DockerStatsParser.swift
 MENUBAR_BIN  := $(MACOS_DIR)/PenpotMenuBar
@@ -18,7 +20,7 @@ LSREGISTER   := /System/Library/Frameworks/CoreServices.framework/Versions/A/Fra
 SHELL_RC     := $(HOME)/.zshrc
 ALIAS_LINE   := alias penpot='$(MACOS_DIR)/Penpot'
 
-.PHONY: all build install post-install clean uninstall status test
+.PHONY: all build assemble bundle install post-install clean uninstall status test
 
 all: build
 
@@ -27,16 +29,10 @@ build: $(MENUBAR_BIN)
 $(MENUBAR_BIN): $(SWIFT_SRC) | $(MACOS_DIR)
 	swiftc -O -o $@ $(SWIFT_SRC) -framework Cocoa
 
-install: build | $(RES_DIR)
+# Copy-only assembly of the app bundle at $(APP_DIR); shared by install,
+# bundle (CI/DMG) and the Homebrew formula (APP_DIR=<prefix>/Penpot.app).
+assemble: build | $(RES_DIR)
 	cp $(SRC_DIR)/app/Info.plist $(CONTENTS_DIR)/Info.plist
-	@mkdir -p "$(ENV_DIR)"
-	@if [ -f "$(ENV_FILE)" ]; then \
-		echo ".env already exists at $(ENV_FILE), skipping (remove it manually to reset)"; \
-	elif [ -f .env ]; then \
-		cp .env "$(ENV_FILE)"; \
-	else \
-		echo "No .env found — first launch will run interactive setup"; \
-	fi
 	cp $(SRC_DIR)/app/docker-compose.yaml $(MACOS_DIR)/docker-compose.yaml
 	cp .env.example $(MACOS_DIR)/.env.example
 	cp .version $(MACOS_DIR)/.version
@@ -46,6 +42,21 @@ install: build | $(RES_DIR)
 	cp $(SRC_DIR)/resources/AppIcon.icns $(RES_DIR)/AppIcon.icns
 	cp $(SRC_DIR)/resources/MenuBarIconTemplate.png $(RES_DIR)/MenuBarIconTemplate.png
 	cp $(SRC_DIR)/resources/MenuBarIconTemplate@2x.png $(RES_DIR)/MenuBarIconTemplate@2x.png
+
+# Relocatable, ad-hoc signed bundle for the DMG release.
+bundle:
+	$(MAKE) assemble APP_DIR="$(BUNDLE_DIR)"
+	codesign --force --deep --sign - "$(BUNDLE_DIR)"
+
+install: assemble
+	@mkdir -p "$(ENV_DIR)"
+	@if [ -f "$(ENV_FILE)" ]; then \
+		echo ".env already exists at $(ENV_FILE), skipping (remove it manually to reset)"; \
+	elif [ -f .env ]; then \
+		cp .env "$(ENV_FILE)"; \
+	else \
+		echo "No .env found — first launch will run interactive setup"; \
+	fi
 	touch $(APP_DIR)
 	$(LSREGISTER) -f $(APP_DIR)
 	@echo "Installed: $(APP_DIR)"
