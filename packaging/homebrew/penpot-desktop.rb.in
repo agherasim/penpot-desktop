@@ -10,7 +10,7 @@ class PenpotDesktop < Formula
   depends_on :macos
 
   def install
-    system "make", "assemble", "APP_DIR=#{prefix}/Penpot.app"
+    system "make", "assemble", "APP_DIR=#{prefix}/Penpot.app", "APP_VERSION=#{version}"
     (bin/"penpot").write <<~SH
       #!/bin/sh
       exec "#{opt_prefix}/Penpot.app/Contents/MacOS/Penpot" "$@"
@@ -32,5 +32,6 @@ class PenpotDesktop < Formula
 
   test do
     assert_match "No Penpot launcher", shell_output("#{bin}/penpot uninstall-app #{testpath}")
+    assert_match "penpot-desktop #{version}", shell_output("#{bin}/penpot version")
   end
 end

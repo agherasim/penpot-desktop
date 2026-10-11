@@ -43,6 +43,19 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private let mcpHealthURL: URL? = URL(string: "http://localhost:4400/manifest.json")
 
+    // "Penpot Desktop 2.17.1.1 · Penpot 2.17.1", from Info.plist (stamped by
+    // `make assemble`) and the pinned .version next to the executable.
+    private let versionLabel: String = {
+        let macOS = Bundle.main.executableURL?.deletingLastPathComponent()
+        let plist = macOS?.deletingLastPathComponent().appendingPathComponent("Info.plist")
+        let info = plist.flatMap { NSDictionary(contentsOf: $0) }
+        let app = info?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let penpot = macOS
+            .flatMap { try? String(contentsOf: $0.appendingPathComponent(".version"), encoding: .utf8) }?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? "unknown"
+        return "Penpot Desktop \(app) · Penpot \(penpot)"
+    }()
+
     private lazy var menuBarIcon: NSImage? = {
         let dir = Bundle.main.executableURL?.deletingLastPathComponent()
         let retinaPath = dir?.deletingLastPathComponent()
@@ -66,7 +79,7 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             } else {
                 button.title = "◆"
             }
-            button.toolTip = "Penpot"
+            button.toolTip = versionLabel
             button.action = #selector(handleClick)
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseDown])
@@ -105,6 +118,10 @@ class PenpotMenuBar: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     private func showContextMenu() {
         let menu = NSMenu()
+        let version = NSMenuItem(title: versionLabel, action: nil, keyEquivalent: "")
+        version.isEnabled = false
+        menu.addItem(version)
+        menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Open Penpot", action: #selector(openPenpot), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit Penpot", action: #selector(stopPenpot), keyEquivalent: ""))

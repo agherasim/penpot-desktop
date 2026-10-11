@@ -83,6 +83,22 @@ EOF
     echo "Installed launcher: $SHIM -> $TARGET_APP"
     exit 0
     ;;
+  version|--version|-v)
+    APP_VERSION="$(plutil -extract CFBundleShortVersionString raw "$SCRIPT_DIR/../Info.plist" 2>/dev/null)"
+    PINNED="$(tr -d '[:space:]' < "$VERSION_FILE" 2>/dev/null)"
+    RUNNING="$(docker ps --filter label=com.docker.compose.project=penpot \
+      --filter label=com.docker.compose.service=penpot-backend --format '{{.Image}}' 2>/dev/null | sed -n 's/.*://p')"
+    echo "penpot-desktop ${APP_VERSION:-unknown}"
+    echo "penpot pinned  ${PINNED:-unknown}"
+    if [ -z "$RUNNING" ]; then
+      echo "penpot running (not running)"
+    elif [ "$RUNNING" != "$PINNED" ]; then
+      echo "penpot running $RUNNING (restart to switch to $PINNED: penpot stop && penpot start)"
+    else
+      echo "penpot running $RUNNING"
+    fi
+    exit 0
+    ;;
   uninstall-app)
     SHIM="$(apps_dir "$2")/Penpot.app"
     if is_shim "$SHIM"; then
@@ -209,7 +225,7 @@ case "$1" in
     "$SCRIPT_DIR/PenpotMenuBar" &
     ;;
   *)
-    echo "Usage: $0 {start|stop|status|install-app [dir]|uninstall-app [dir]}"
+    echo "Usage: $0 {start|stop|status|version|install-app [dir]|uninstall-app [dir]}"
     exit 1
     ;;
 esac

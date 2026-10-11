@@ -75,11 +75,17 @@ The formula template is `packaging/homebrew/penpot-desktop.rb.in`. On a `v*` tag
 
 # Stop Penpot
 ~/Applications/Penpot.app/Contents/MacOS/Penpot stop
+
+# App version, pinned Penpot version, and the Penpot version actually running
+~/Applications/Penpot.app/Contents/MacOS/Penpot version
 ```
+
+The app version is stamped into `Info.plist` (`CFBundleShortVersionString`, shown in Finder's Get Info) by `make assemble`. Pass `APP_VERSION=…` to set it explicitly; otherwise it comes from `git describe` against the nearest `v*` tag. The menu bar's right-click menu and tooltip show it too.
 
 **Menu bar (◆):**
 
 - Shows ◆ when healthy, ◇ when not running
+- **Penpot Desktop X · Penpot Y** (first item): app and pinned Penpot versions
 - **Open Penpot** — opens browser
 - **Stop Penpot** — stops all containers + quits menu bar
 

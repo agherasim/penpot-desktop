@@ -27,19 +27,23 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="v${{ inputs.version }}-${{ github.run_number }}"
+            APP_VERSION="${{ inputs.version }}"
             PRERELEASE=false
           elif [ "${{ github.ref_type }}" = "tag" ]; then
             TAG="v${GITHUB_REF_NAME#v}-${{ github.run_number }}"
+            APP_VERSION="${GITHUB_REF_NAME#v}"
             PRERELEASE=false
           else
             TAG="unstable-${{ github.run_number }}"
+            APP_VERSION="unstable-${{ github.run_number }}"
             PRERELEASE=true
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
       - name: Build, assemble and ad-hoc sign Penpot.app bundle
-        run: make bundle BUNDLE_DIR=build/Penpot.app
+        run: make bundle BUNDLE_DIR=build/Penpot.app APP_VERSION="${{ steps.version.outputs.app_version }}"
 
       - name: Create DMG
         env:

@@ -11,6 +11,14 @@ ENV_FILE     := $(ENV_DIR)/.env
 
 BUNDLE_DIR   ?= build/Penpot.app
 
+# App version stamped into Info.plist (CFBundleShortVersionString). CI and the
+# Homebrew formula pass it explicitly; local builds derive it from the nearest
+# annotated release tag (v2.17.1.1 -> 2.17.1.1, plus -N-g<sha>[-dirty] if ahead).
+APP_VERSION  ?= $(shell git describe --match 'v[0-9]*' --dirty 2>/dev/null | sed 's/^v//')
+ifeq ($(strip $(APP_VERSION)),)
+APP_VERSION  := dev
+endif
+
 SRC_DIR      := src
 SWIFT_SRC    := $(wildcard $(SRC_DIR)/menubar/*.swift) Sources/DockerStats/DockerStatsParser.swift
 MENUBAR_BIN  := $(MACOS_DIR)/PenpotMenuBar
@@ -33,6 +41,7 @@ $(MENUBAR_BIN): $(SWIFT_SRC) | $(MACOS_DIR)
 # bundle (CI/DMG) and the Homebrew formula (APP_DIR=<prefix>/Penpot.app).
 assemble: build | $(RES_DIR)
 	cp $(SRC_DIR)/app/Info.plist $(CONTENTS_DIR)/Info.plist
+	plutil -replace CFBundleShortVersionString -string "$(APP_VERSION)" $(CONTENTS_DIR)/Info.plist
 	cp $(SRC_DIR)/app/docker-compose.yaml $(MACOS_DIR)/docker-compose.yaml
 	cp .env.example $(MACOS_DIR)/.env.example
 	cp .version $(MACOS_DIR)/.version
