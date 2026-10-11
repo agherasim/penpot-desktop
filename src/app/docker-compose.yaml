@@ -281,9 +281,9 @@ services:
     # @penpot/mcp's own bootstrap (bin/mcp-local.js) shells out to `pnpm install`, which
     # since pnpm 10+ hard-fails on native-dependency build scripts (esbuild, sharp) unless
     # explicitly approved in pnpm-workspace.yaml. There's no flag to pre-approve them for
-    # a one-shot `npx` run, so: run once (fails harmlessly at the install step, which
-    # auto-writes an `allowBuilds` placeholder into pnpm-workspace.yaml), patch that
-    # placeholder to true, then run for real.
+    # a one-shot run, so append the approvals to the package's pnpm-workspace.yaml before
+    # running it. (Older pnpm wrote an `allowBuilds` placeholder on the first failed run
+    # that could be patched to true; pnpm 12, which corepack now fetches, no longer does.)
     #
     # /opt/mcp itself isn't a volume, but `restart: unless-stopped` restarts this same
     # container (not a fresh one) on crash, so its writable layer — including any
@@ -299,8 +299,7 @@ services:
       mkdir -p /opt/mcp && cd /opt/mcp &&
       npm install @penpot/mcp@$$PENPOT_MCP_VERSION --no-save &&
       cd node_modules/@penpot/mcp &&
-      (node bin/mcp-local.js || true) &&
-      sed -i 's/esbuild:.*/esbuild: true/; s/sharp:.*/sharp: true/' pnpm-workspace.yaml &&
+      printf '\\nallowBuilds:\\n  esbuild: true\\n  sharp: true\\n' >> pnpm-workspace.yaml &&
       exec node bin/mcp-local.js"
     volumes:
       - penpot_mcp_cache:/root/.npm
